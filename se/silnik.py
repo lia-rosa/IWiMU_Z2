@@ -24,6 +24,26 @@ def regula_spelniona(regula, fakty):
     return all(warunek_spelniony(w, fakty) for w in regula["jesli"])
     raise NotImplementedError
 
+def opisz_regule(regula):
+    warunki = " ORAZ ".join(f"{a} {op} {w!r}"
+                            for a, op, w in regula["jesli"])
+    atrybut, wartosc = regula["to"]
+    return f"{regula['id']}: JEŚLI {warunki} TO {atrybut} = {wartosc!r}"
+
+def wyjasnij_jak(baza, slad):
+    po_id = {r["id"]: r for r in baza["reguly"]}
+    kroki = []
+    for nr, id_reguly in enumerate(slad, start=1):
+        regula = po_id[id_reguly]
+        kroki.append(f"{nr}. {opisz_regule(regula)}\n   -> {regula['metafora']}")
+    return kroki
+
+def coto(baza, slad):
+    po_id = {r["id"]: r for r in baza["reguly"]}
+    for id_reguly in reversed(slad):
+        regula = po_id[id_reguly]
+        if regula.get("coto"):
+            return regula["coto"]
 
 def wnioskuj_w_przod(baza, fakty):
     """Zwraca (fakty po wnioskowaniu, lista id odpalonych reguł)."""
@@ -38,7 +58,6 @@ def wnioskuj_w_przod(baza, fakty):
                 fakty[atrybut] = wartosc
                 slad.append(regula["id"])
                 zmiana = True
-            pass
     return fakty, slad
 
 
@@ -84,7 +103,10 @@ def zapytaj_konsola(baza):
         opis = baza["atrybuty"].get(atrybut, {})
         podpowiedz = f" ({'/'.join(opis['wartosci'])})" if "wartosci" in opis else ""
         while True:
-            odp = input(f"{opis.get('pytanie', atrybut)}{podpowiedz} ").strip()
+            odp = input(f"{opis.get('pytanie', atrybut)}{podpowiedz} (? = dlaczego pytam) ").strip()
+            if odp == "?":
+                print(f"Pytam, bo sprawdzam regułę: {opisz_regule(powod)}")
+                continue
             if opis.get("typ") == "liczba":
                 try:
                     return float(odp.replace(",", "."))
@@ -100,7 +122,7 @@ def zapytaj_konsola(baza):
 
 if __name__ == "__main__":
     PLIK_BAZY = Path(__file__).parent.parent / "wiedza" / "trasa.json"
-    FAKTY = {"pogoda": "słoneczna", "predkosc_wiatru": 10, "zmeczenie": "duże", "ochota": "tak"}
+    FAKTY = {"pogoda": "pochmurna", "predkosc_wiatru": 5, "zmeczenie": "brak", "ochota": "nie"}
 
     baza = wczytaj_baze(PLIK_BAZY)
     cel = baza["cel"]
@@ -113,3 +135,7 @@ if __name__ == "__main__":
     slad = []
     print("Polecam:", wnioskuj_wstecz(baza, cel, {}, zapytaj_konsola(baza), slad))
     print("Reguły:", " -> ".join(slad))
+    print("\n=== Jak doszedłem do wniosku? ===")
+    for linia in wyjasnij_jak(baza, slad):
+        print(linia)
+    print("Co to jest?", coto(baza, slad))
